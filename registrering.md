@@ -12,10 +12,17 @@ participant "Wallet Access" as walletAccess
 participant "Wallet Access\nPersistent store" as walletAccessPersistentStore
 participant "HSM" as hsm
 participant "Wallet Provider" as walletProvider
+
+
 walletApp -> walletBff: Authenticate with eId  (???)
 note right: eId Auth Request with OIDC or something \n Keep authorization header/cookie during the registration process
 walletBff --> walletApp: Bearer token, session cookie or similar
 
+group User registration 
+walletApp -> walletBff: Bearer token 
+note right: Någon sorts registrering och "mina sidor \n Inga detaljer här - separat flöde mellan walletApp och utfärdarteamet?" 
+walletBff -> walletApp: 
+end
 
 walletApp -> walletApp: generate device key pairs\n - device key \n - PIN hardening key
 
@@ -34,22 +41,22 @@ walletBff -> walletAccess: Initialize wallet with device public key \n JWS(devic
 walletAccess -> hsm: Create wallet key pair in HSM
 hsm --> walletAccess: wallet public key
 walletAccess -> walletAccess: compute \n - deviceId = sha256(device public key) \n - wallet key identifier = sha256(wallet public key)
-walletAccess -> walletAccessPersistentStore: Store wallet: \n - deviceId \n - wallet key identifier \n - wallet public key \n - opaque verifier  
-walletAccess -> walletAccess: compute pakeSessionKey
+walletAccess -> walletAccessPersistentStore: Store wallet: \n - deviceId \n - device public key \n - wallet key identifier \n - wallet public key \n - opaque verifier  
+walletAccess -> walletAccess: compute pakeSessionKey (optional)
 
-walletAccess -> walletBff: The User's wallet \n - wallet public key \n - wallet key identifier \n - JWS(hsmServer, KE2)
+walletAccess --> walletProvider: Register wallet instance with wallet public key and deviceId 
+note left: På något sätt behöver deviceId, device public key, wallet public key och wallet key identifier \n göras tillgängligt för wallet provider och kanske BFF \n mikrotjänst eller via kafka topic?
 
-walletBff -> walletProvider: Register wallet instance with wallet public key and deviceId 
-note right: prata med andra team om WUA här eller i separat låda nedan
-walletProvider --> walletProvider: Generate WUA Response
-walletProvider --> walletBff: WUA Response +JWS(hsmServer, KE2)
-walletBff --> walletApp: JWE(sessionKey, WUA Response + JWS(hsmServer, KE2))
+walletAccess -> walletBff: The User's wallet \n - device public key \n - wallet public key? \n - wallet key identifier? \n - JWS(hsmServer, KE2)
+
+walletBff --> walletApp: JWE(sessionKey, JWS(hsmServer, KE2))
 
 walletApp -> walletBff: authenticate hsm context Opaque KE3 Finalize\nJWE(sessionKey, JWS(device, KE3))
 walletBff -> walletAccess: authenticate hsm context Opaque KE3 Finalize\nJWS(device, KE3)
 walletAccess --> walletBff: JWS(hsmServer, pakeSessionId)
 walletBff --> walletApp: JWE(sessionKey, JWS(hsmServer, pakeSessionId))
-walletApp -> walletApp: optionally compute pakeSessionKey
+walletApp -> walletApp: compute pakeSessionKey (optional)
+note right: Om session key behövs för efterföljande flöde så kan man tänka sig att den räknas ut här. \n T.ex. för att hämta WUA eller göra proof of possesion i OpenID4VCI PID flödet
 
 end
 
@@ -73,8 +80,12 @@ end
 
 # Frågor att diskutera med andra team
 
+## optionally compute pakeSessionId 
+
+
 ## Var utfärdas WUA
-Ska vi utfärda WUA efter registrering av wallet device eller invävt i registreringen. Båda alternativen grovt inritat i diagrammet ovan
+Ska vi utfärda WUA efter registrering av wallet device eller invävt i registreringen. Båda alternativen grovt inritat i diagrammet ovan.
+Det mesta talar för att WUA ska vara i den egna lådan "Get Wallet User Attestation (WUA)" i diagrammet ovan och kunna köras separat vid behov.
 
 ## Metadata
 Vi har metadata som deviceId, wallet public key och wallet key identifier som vi behöver lagra och göra tillgänglig för t.ex. wallet provider.
