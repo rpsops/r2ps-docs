@@ -18,15 +18,17 @@ walletApp -> walletBff: Authenticate with eId  (???)
 note right: eId Auth Request with OIDC or something \n Keep authorization header/cookie during the registration process
 walletBff --> walletApp: Bearer token, session cookie or similar
 
+
+walletApp -> walletApp: generate device key pairs\n - device key \n - PIN hardening key
+
 group User registration 
 walletApp -> walletBff: Bearer token 
 note right: Någon sorts registrering och "mina sidor \n Inga detaljer här - separat flöde mellan walletApp och utfärdarteamet?" 
 walletBff -> walletApp: 
 end
 
-walletApp -> walletApp: generate device key pairs\n - device key \n - PIN hardening key
-
 group Session establishment
+note right of walletApp: Förslag: Mellan Wallet App ochApp BFF skall det finnas integritet och konfidentialitet. \n Föreslagen lösning är HPKE med ephemeral key. App teamet ansvarar för detta.  
 walletApp -> walletApp: get device key handle
 walletApp -> walletBff: HPKE (device.pub, bff.pub)
 walletBff -> walletBff: compute sessionKey
@@ -80,15 +82,8 @@ end
 
 # Frågor att diskutera med andra team
 
-## optionally compute pakeSessionId 
-
-
-## Var utfärdas WUA
-Ska vi utfärda WUA efter registrering av wallet device eller invävt i registreringen. Båda alternativen grovt inritat i diagrammet ovan.
-Det mesta talar för att WUA ska vara i den egna lådan "Get Wallet User Attestation (WUA)" i diagrammet ovan och kunna köras separat vid behov.
-
 ## Metadata
 Vi har metadata som deviceId, wallet public key och wallet key identifier som vi behöver lagra och göra tillgänglig för t.ex. wallet provider.
 Vi har även metadata som opaque verifier som är hemligare och som bara hsm server i wallet access behöver.
 
-Förslagsvis: Accessmekanismen äger det metadatat och har det i sin databas. Vidare publiceras allt som ska delas med andra team/tjänster på en kafka topic som alla intresserade konsumerar from beginning
+Förslagsvis: Accessmekanismen äger det metadatat och har det i sin databas. Vidare publiceras allt som ska delas med andra team/tjänster på en kafka topic som alla intresserade konsumerar from beginning. Utöver det finns det en mikrotjänst som servar datat via REST GET.
